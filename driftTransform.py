@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 %matplotlib inline
 import cv2
 import os
+import itertools
 BASE_PATH = "/data/nvidia-docker/data";
-data_dir = os.path.join(BASE_PATH,"UCF-101_train01")
+data_dir = os.path.join(BASE_PATH,"UCF-101")
 classMapFile = os.path.join(BASE_PATH,"ucfTrainTestlist/classInd.txt")
 
 
@@ -37,13 +38,10 @@ def dirToVideoLabel(data_dir, label_dic):
     labels = []
     filenames = []
     for label_name in os.listdir(data_dir):
-        lab_dir = os.path.join(data_dir, label_name)
-        for video_dir in os.listdir(lab_dir):
-            vid_dir = os.path.join(lab_dir, video_dir)
-            vFils = []
-            for f in os.listdir(vid_dir):
-                vFils.append(os.path.join(vid_dir, f))
-            filenames.append(vFils)
+        label_dir = os.path.join(data_dir, label_name)
+        for video in os.listdir(label_dir):
+            videoFile = os.path.join(lab_dir, video)
+            filenames.append(videoFile)
             labels.append(int(label_dic[label_name]) - 1)
     return filenames, labels
 
@@ -89,7 +87,6 @@ image = sess.run(imTensor)
 res = sess.run(vgg.output,{x: image})
 res = vgg.predict(image)
 
-plt.hist(res)
 
 tf.global_variables()
 
@@ -104,10 +101,10 @@ with sess as tf.Session():
     vgg = getVgg(sess,imPh)
     model =  extendModel(vgg,xPh)
     sess.run(tf.global_variables_initializer())
-    xPrediction = np.zeros((1,rn_number))
-    for videoFrmesArray in videos:
-        for framePath in videoFrmesArray:
-            frame = cv2.imread(framepath)
-            xPrediction = sess.run(model,feed_dict={xPh:xPrediction,imPh:im}).shape
-        xPath = ""
-        np.save(xPath,xPrediction)
+    for video,label in itertools.izip(videos,labels):
+        xPrediction = np.zeros((1,rn_number))
+        cv2.video_capture
+                    frame = cv2.imread(framepath)
+                    xPrediction = sess.run(model,feed_dict={xPh:xPrediction,imPh:im})
+                xPath = ""
+                np.save(xPath,xPrediction)
