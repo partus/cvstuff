@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-%matplotlib inline
+# %matplotlib inline
 import cv2
 import os
 import itertools
@@ -40,7 +40,7 @@ def dirToVideoLabel(data_dir, label_dic):
     for label_name in os.listdir(data_dir):
         label_dir = os.path.join(data_dir, label_name)
         for video in os.listdir(label_dir):
-            videoFile = os.path.join(lab_dir, video)
+            videoFile = os.path.join(label_dir, video)
             filenames.append(videoFile)
             labels.append(int(label_dic[label_name]) - 1)
     return filenames, labels
@@ -59,52 +59,61 @@ def extendModel(nn,x):
     return out
 
 
-
-file
-file =videos[0][0]
-im = cv2.imread(file)
-im = im[0:224,0:224,:]
-plt.imshow(im)
-print(im.shape)
-print(x.shape)
-im = np.expand_dims(im,0)
-print(file )
-
-
-
-imTensor = _parse_function(filename[0],224)
-imTensor
-sess.run(imTensor)
-sess.run(vgg)
+#
+# file
+# file =videos[0][0]
+# im = cv2.imread(file)
+# im = im[0:224,0:224,:]
+# plt.imshow(im)
+# print(im.shape)
+# print(x.shape)
+# im = np.expand_dims(im,0)
+# print(file )
 
 
-tf.reset_default_graph()
-sess.close()
-image = sess.run(tf.expand_dims(imTensor,0))
-image = sess.run(imTensor)
 
-
-res = sess.run(vgg.output,{x: image})
-res = vgg.predict(image)
-
-
-tf.global_variables()
+# imTensor = _parse_function(filename[0],224)
+# imTensor
+# sess.run(imTensor)
+# sess.run(vgg)
+#
+#
+# tf.reset_default_graph()
+# sess.close()
+# image = sess.run(tf.expand_dims(imTensor,0))
+# image = sess.run(imTensor)
+#
+#
+# res = sess.run(vgg.output,{x: image})
+# res = vgg.predict(image)
+#
+#
+# tf.global_variables()
 
 # tf.summary.FileWriter('/data/tgraph', sess.graph)
 
 
 videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
-with sess as tf.Session():
+with tf.Session() as sess:
     rn_number = 1600
     xPh= tf.placeholder(tf.float32,[None,rn_number],name="prediction")
     imPh = tf.placeholder(tf.float32, shape=(None,224, 224,3),name="cnnInput")
     vgg = getVgg(sess,imPh)
     model =  extendModel(vgg,xPh)
     sess.run(tf.global_variables_initializer())
-    for video,label in itertools.izip(videos,labels):
+    videoVectors = []
+    for videopath,label in zip(videos,labels):
         xPrediction = np.zeros((1,rn_number))
-        cv2.video_capture
-                    frame = cv2.imread(framepath)
-                    xPrediction = sess.run(model,feed_dict={xPh:xPrediction,imPh:im})
-                xPath = ""
-                np.save(xPath,xPrediction)
+        video_capture = cv2.VideoCapture(videopath)
+        success, frame = video_capture.read()
+        # frameId = int(video_capture.get(1))
+        while success:
+            # filename = "{}_{}.jpg".format(rootname, str(frameId))
+            print(frame.shape)
+            xPrediction = sess.run(model,feed_dict={xPh:xPrediction,imPh:frame})
+            # cv2.imwrite(os.path.join(dest, filename), img=image)
+            success, frame = video_capture.read()
+            # frameId = int(video_capture.get(1))
+        videoVectors.append(xPrediction)
+    npVideoVectors = np.array(videoVectors)
+    np.save("/data/UCFvectors",npVideoVectors)
