@@ -119,37 +119,38 @@ def resizeFrame(frame):
     return frame[cut:cut+240,:,:]
 
 videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
-# sess = tf.Session()
+sess = tf.Session()
 with tf.Session() as sess:
-    rn_number = 1600
+rn_number = 1600
 
-    xPh= tf.placeholder(tf.float32,[None,rn_number],name="prediction")
-    imPh = tf.placeholder(tf.float32, shape=(None,224, 224,3),name="cnnInput")
-    vgg = getVgg(sess,imPh)
-    vggCutLayer = vgg.layers[-3] # first fully connected layer
-    feature_number = feature_number.shape[1]
-    model =  reservoir(vggCutLayer,xPh)
-    sess.run(tf.global_variables_initializer())
-    videoVectors = []
-    for videopath,label in zip(videos,labels):
-        xPrediction = np.zeros((1,rn_number))
-        xMean = np.clone(xPrediction)
-        featureMean = np.zeros((1,feature_number))
-        video_capture = cv2.VideoCapture(videopath)
+xPh= tf.placeholder(tf.float32,[None,rn_number],name="prediction")
+imPh = tf.placeholder(tf.float32, shape=(None,224, 224,3),name="cnnInput")
+vgg = getVgg(sess,imPh)
+vggCutLayer = vgg.layers[-3] # first fully connected layer
+feature_number = vggCutLayer.output.shape[1]
+print("Featur number {}".format(feature_number))
+model = reservoir(vggCutLayer,xPh)
+sess.run(tf.global_variables_initializer())
+videoVectors = []
+for videopath,label in zip(videos,labels):
+    xPrediction = np.zeros((1,rn_number))
+    xMean = np.clone(xPrediction)
+    featureMean = np.zeros((1,feature_number))
+    video_capture = cv2.VideoCapture(videopath)
+    success, frame = video_capture.read()
+    # frameId = int(video_capture.get(1))
+    fremeCount = 0
+    while success:
+        frameCount = frameCount + 1
+        frame = resizeFrame(frame)
+        # filename = "{}_{}.jpg".format(rootname, str(frameId))
+        print(frame.shape)
+        featureVector, xPrediction = sess.run([vggCutLayer,model],feed_dict={xPh:xPrediction,imPh:frame})
+        xMean = xMean + xPrediction
+        featureMean = featureMean + featureVector
+        # cv2.imwrite(os.path.join(dest, filename), img=image)
         success, frame = video_capture.read()
         # frameId = int(video_capture.get(1))
-        fremeCount = 0
-        while success:
-            frameCount = frameCount + 1
-            frame = resizeFrame(frame)
-            # filename = "{}_{}.jpg".format(rootname, str(frameId))
-            print(frame.shape)
-            featureVector, xPrediction = sess.run([vggCutLayer,model],feed_dict={xPh:xPrediction,imPh:frame})
-            xMean = xMean + xPrediction
-            featureMean = featureMean + featureVector
-            # cv2.imwrite(os.path.join(dest, filename), img=image)
-            success, frame = video_capture.read()
-            # frameId = int(video_capture.get(1))
-        videoVectors.append(np.concatenate(featureMean,xPrediction,axis=1)
-    npVideoVectors = np.array(videoVectors)
-    np.save("/data/UCFvectors",npVideoVectors)
+    videoVectors.append(np.concatenate(featureMean,xPrediction,axis=1))
+npVideoVectors = np.array(videoVectors)
+np.save("/data/UCFvectors",npVideoVectors)
