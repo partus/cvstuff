@@ -10,7 +10,6 @@ BASE_PATH = "/data/nvidia-docker/data";
 data_dir = os.path.join(BASE_PATH,"UCF-101")
 classMapFile = os.path.join(BASE_PATH,"ucfTrainTestlist/classInd.txt")
 
-
 def getVgg(sess,imPh):
     img = imPh
     tf.keras.backend.set_session(sess)
@@ -60,25 +59,7 @@ def extendModel(cutLayer,x):
 
 from tensorflow.python.ops import init_ops
 
-def reservoir(input,x,name="reservoir"):
-    initializer = init_ops.random_normal_initializer()
-    dtype = tf.float32
-    rn_number = int(x.shape[1])
-    input_size = int(input.shape[1])
-    with vs.variable_scope(name):  # "ESNCell"
-        w_in = vs.get_variable("InputMatrix", [input_size, rn_number], dtype=dtype,
-                            trainable=False, initializer=initializer)
-        w_r = vs.get_variable("ReservoirMatrix", [rn_number, rn_number], dtype=dtype,
-                           trainable=False, initializer=initializer)
-        # b = vs.get_variable("Bias", [self._num_units], dtype=dtype, trainable=False, initializer=self._bias_initializer)
 
-        in_mat = array_ops.concat([inputs, state], axis=1)
-        weights_mat = array_ops.concat([win, wr], axis=0)
-        out_in = tf.matmul(input,w_in)
-        out_x = tf.matmul(x,w_r)
-        output = tf.nn.relu(out_in+out_x)
-        # output = (1 - self._leaky) * state + self._leaky * self._activation(math_ops.matmul(in_mat, weights_mat) + b)
-        return output
 
 
 #
@@ -120,7 +101,7 @@ def resizeFrame(frame):
 
 videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
 sess = tf.Session()
-with tf.Session() as sess:
+# with tf.Session() as sess:
 rn_number = 1600
 
 xPh= tf.placeholder(tf.float32,[None,rn_number],name="prediction")
@@ -129,28 +110,57 @@ vgg = getVgg(sess,imPh)
 vggCutLayer = vgg.layers[-3] # first fully connected layer
 feature_number = vggCutLayer.output.shape[1]
 print("Featur number {}".format(feature_number))
+
+
+# input = vggCutLayer
+# x = xPh
+# name = "reservoir"
+
+def reservoir(input,x,name="reservoir"):
+    initializer = init_ops.random_normal_initializer()
+    dtype = tf.float32
+    rn_number = int(x.shape[1])
+    input_size = int(input.output_shape[1])
+    print("Reservoir input size: {}".format(input_size))
+    with tf.variable_scope(name):  # "ESNCell"
+        w_in = tf.get_variable("InputMatrix", [input_size, rn_number], dtype=dtype,
+                            trainable=False, initializer=initializer)
+        w_r = tf.get_variable("ReservoirMatrix", [rn_number, rn_number], dtype=dtype,
+                           trainable=False, initializer=initializer)
+        # in_mat = tf.concat([input, state], axis=1)
+        # weights_mat = tf.concat([win, wr], axis=0)
+        out_in = tf.matmul(input.output,w_in)
+        out_x = tf.matmul(x,w_r)
+        output = tf.nn.relu(out_in+out_x)
+        # output = (1 - self._leaky) * state + self._leaky * self._activation(math_ops.matmul(in_mat, weights_mat) + b)
+        return output
+
+
+
+
 model = reservoir(vggCutLayer,xPh)
-sess.run(tf.global_variables_initializer())
-videoVectors = []
-for videopath,label in zip(videos,labels):
-    xPrediction = np.zeros((1,rn_number))
-    xMean = np.clone(xPrediction)
-    featureMean = np.zeros((1,feature_number))
-    video_capture = cv2.VideoCapture(videopath)
-    success, frame = video_capture.read()
-    # frameId = int(video_capture.get(1))
-    fremeCount = 0
-    while success:
-        frameCount = frameCount + 1
-        frame = resizeFrame(frame)
-        # filename = "{}_{}.jpg".format(rootname, str(frameId))
-        print(frame.shape)
-        featureVector, xPrediction = sess.run([vggCutLayer,model],feed_dict={xPh:xPrediction,imPh:frame})
-        xMean = xMean + xPrediction
-        featureMean = featureMean + featureVector
-        # cv2.imwrite(os.path.join(dest, filename), img=image)
-        success, frame = video_capture.read()
-        # frameId = int(video_capture.get(1))
-    videoVectors.append(np.concatenate(featureMean,xPrediction,axis=1))
-npVideoVectors = np.array(videoVectors)
-np.save("/data/UCFvectors",npVideoVectors)
+#
+# sess.run(tf.global_variables_initializer())
+# videoVectors = []
+# for videopath,label in zip(videos,labels):
+#     xPrediction = np.zeros((1,rn_number))
+#     xMean = np.clone(xPrediction)
+#     featureMean = np.zeros((1,feature_number))
+#     video_capture = cv2.VideoCapture(videopath)
+#     success, frame = video_capture.read()
+#     # frameId = int(video_capture.get(1))
+#     fremeCount = 0
+#     while success:
+#         frameCount = frameCount + 1
+#         frame = resizeFrame(frame)
+#         # filename = "{}_{}.jpg".format(rootname, str(frameId))
+#         print(frame.shape)
+#         featureVector, xPrediction = sess.run([vggCutLayer,model],feed_dict={xPh:xPrediction,imPh:frame})
+#         xMean = xMean + xPrediction
+#         featureMean = featureMean + featureVector
+#         # cv2.imwrite(os.path.join(dest, filename), img=image)
+#         success, frame = video_capture.read()
+#         # frameId = int(video_capture.get(1))
+#     videoVectors.append(np.concatenate(featureMean,xPrediction,axis=1))
+# npVideoVectors = np.array(videoVectors)
+# np.save("/data/UCFvectors",npVideoVectors)
