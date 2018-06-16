@@ -144,7 +144,7 @@ with tf.Session() as sess:
     model,vggCutLayer,imPh,xPh = constuctGraph(sess,rn_number)
     sess.run(tf.global_variables_initializer())
     videoVectors = []
-    for videopath,label in zip(videos,labels):
+    def transformVideo(videopath,label):
         print("Processing video {} with label {}".format(videopath,label))
         xPrediction = np.zeros((1,rn_number))
         xMean = np.zeros_like(xPrediction)
@@ -164,7 +164,9 @@ with tf.Session() as sess:
             featureMean = featureMean + featureVector
             # cv2.imwrite(os.path.join(dest, filename), img=image)
             success, frame = video_capture.read()
-            # frameId = int(video_capture.get(1))
-        videoVectors.append(np.concatenate((featureMean/frameNum,xMean/frameNum),axis=1))
+        return np.concatenate((featureMean/frameNum,xMean/frameNum),axis=1)
+    for videopath,label in zip(videos,labels):
+        # frameId = int(video_capture.get(1))
+        videoVectors.append(transformVideo(videopath,label))
     npVideoVectors = np.array(videoVectors)
     np.save("/data/UCFvectors",npVideoVectors)
