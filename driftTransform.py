@@ -95,9 +95,10 @@ from tensorflow.python.ops import init_ops
 
 # tf.summary.FileWriter('/data/tgraph', sess.graph)
 
-def resizeFrame(frame,w=224):
-    cut = int((frame.shape[1]-w)/2)
-    return frame[cut:cut+w,:,:]
+def resizeFrame(frame,w=224,h=224):
+    cutw = int((frame.shape[1]-w)/2)
+    cuth = int((frame.shape[0]-w)/2)
+    return frame[cuth:cuth+h,cutw:cutw+w,:]
 
 
 
@@ -155,9 +156,10 @@ with tf.Session() as sess:
         while success:
             frameNum = frameNum + 1
             frame = resizeFrame(frame)
+            frame = np.array([frame])
             # filename = "{}_{}.jpg".format(rootname, str(frameId))
             print("converting frame {}".format(frameNum))
-            featureVector, xPrediction = sess.run([vggCutLayer,model],feed_dict={xPh:xPrediction,imPh:frame})
+            featureVector, xPrediction = sess.run([vggCutLayer.output,model],feed_dict={xPh:xPrediction,imPh:frame})
             xMean = xMean + xPrediction
             featureMean = featureMean + featureVector
             # cv2.imwrite(os.path.join(dest, filename), img=image)
