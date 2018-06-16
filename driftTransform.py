@@ -165,6 +165,6 @@ with tf.Session() as sess:
             # cv2.imwrite(os.path.join(dest, filename), img=image)
             success, frame = video_capture.read()
             # frameId = int(video_capture.get(1))
-        videoVectors.append(np.concatenate(featureMean/frameNum,xMean/frameNum,axis=1))
+        videoVectors.append(np.concatenate((featureMean/frameNum,xMean/frameNum),axis=1))
     npVideoVectors = np.array(videoVectors)
     np.save("/data/UCFvectors",npVideoVectors)
