@@ -95,21 +95,10 @@ from tensorflow.python.ops import init_ops
 
 # tf.summary.FileWriter('/data/tgraph', sess.graph)
 
-def resizeFrame(frame):
-    cut = (frame.shape[1]-240)/2
-    return frame[cut:cut+240,:,:]
+def resizeFrame(frame,w=224):
+    cut = int((frame.shape[1]-w)/2)
+    return frame[cut:cut+w,:,:]
 
-videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
-sess = tf.Session()
-# with tf.Session() as sess:
-rn_number = 1600
-
-xPh= tf.placeholder(tf.float32,[None,rn_number],name="prediction")
-imPh = tf.placeholder(tf.float32, shape=(None,224, 224,3),name="cnnInput")
-vgg = getVgg(sess,imPh)
-vggCutLayer = vgg.layers[-3] # first fully connected layer
-feature_number = vggCutLayer.output.shape[1]
-print("Featur number {}".format(feature_number))
 
 
 # input = vggCutLayer
@@ -136,31 +125,44 @@ def reservoir(input,x,name="reservoir"):
         return output
 
 
+def constuctGraph(sess,rn_number = 1600):
+    xPh= tf.placeholder(tf.float32,[None,rn_number],name="prediction")
+    imPh = tf.placeholder(tf.float32, shape=(None,224, 224,3),name="cnnInput")
+    vgg = getVgg(sess,imPh)
+    vggCutLayer = vgg.layers[-3] # first fully connected layer
+    feature_number = vggCutLayer.output.shape[1]
+    print("Featur number of cutLayer {}".format(feature_number))
+    model = reservoir(vggCutLayer,xPh)
+    return model,vggCutLayer,imPh,xPh
+# sess = tf.Session()
 
+videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
 
-model = reservoir(vggCutLayer,xPh)
-#
-# sess.run(tf.global_variables_initializer())
-# videoVectors = []
-# for videopath,label in zip(videos,labels):
-#     xPrediction = np.zeros((1,rn_number))
-#     xMean = np.clone(xPrediction)
-#     featureMean = np.zeros((1,feature_number))
-#     video_capture = cv2.VideoCapture(videopath)
-#     success, frame = video_capture.read()
-#     # frameId = int(video_capture.get(1))
-#     fremeCount = 0
-#     while success:
-#         frameCount = frameCount + 1
-#         frame = resizeFrame(frame)
-#         # filename = "{}_{}.jpg".format(rootname, str(frameId))
-#         print(frame.shape)
-#         featureVector, xPrediction = sess.run([vggCutLayer,model],feed_dict={xPh:xPrediction,imPh:frame})
-#         xMean = xMean + xPrediction
-#         featureMean = featureMean + featureVector
-#         # cv2.imwrite(os.path.join(dest, filename), img=image)
-#         success, frame = video_capture.read()
-#         # frameId = int(video_capture.get(1))
-#     videoVectors.append(np.concatenate(featureMean,xPrediction,axis=1))
-# npVideoVectors = np.array(videoVectors)
-# np.save("/data/UCFvectors",npVideoVectors)
+with tf.Session() as sess:
+    rn_number = 1600
+    model,vggCutLayer,imPh,xPh = constuctGraph(sess,rn_number)
+    sess.run(tf.global_variables_initializer())
+    videoVectors = []
+    for videopath,label in zip(videos,labels):
+        print("Processing video {} with label {}".format(videopath,label))
+        xPrediction = np.zeros((1,rn_number))
+        xMean = np.zeros_like(xPrediction)
+        featureMean = np.zeros((1,vggCutLayer.output.shape[1]))
+        video_capture = cv2.VideoCapture(videopath)
+        success, frame = video_capture.read()
+        # frameId = int(video_capture.get(1))
+        frameNum = 0
+        while success:
+            frameNum = frameNum + 1
+            frame = resizeFrame(frame)
+            # filename = "{}_{}.jpg".format(rootname, str(frameId))
+            print("converting frame {}".format(frameNum))
+            featureVector, xPrediction = sess.run([vggCutLayer,model],feed_dict={xPh:xPrediction,imPh:frame})
+            xMean = xMean + xPrediction
+            featureMean = featureMean + featureVector
+            # cv2.imwrite(os.path.join(dest, filename), img=image)
+            success, frame = video_capture.read()
+            # frameId = int(video_capture.get(1))
+        videoVectors.append(np.concatenate(featureMean/frameNum,xMean/frameNum,axis=1))
+    npVideoVectors = np.array(videoVectors)
+    np.save("/data/UCFvectors",npVideoVectors)
