@@ -107,7 +107,7 @@ def resizeFrame(frame,w=224,h=224):
 # input = vggCutLayer
 # x = xPh
 # name = "reservoir"
-
+toInit  = []
 def reservoir(input,x,name="reservoir"):
     initializer = init_ops.random_normal_initializer()
     dtype = tf.float32
@@ -119,6 +119,8 @@ def reservoir(input,x,name="reservoir"):
                             trainable=False, initializer=initializer)
         w_r = tf.get_variable("ReservoirMatrix", [rn_number, rn_number], dtype=dtype,
                            trainable=False, initializer=initializer)
+        toInit.append(w_in)
+        toInit.append(w_r)
         # in_mat = tf.concat([input, state], axis=1)
         # weights_mat = tf.concat([win, wr], axis=0)
         out_in = tf.matmul(input.output,w_in)
@@ -141,14 +143,20 @@ def constructGraph(sess,rn_number = 1600):
 
 videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
 # sess = tf.Session()
-#
+# #
 # model,vggCutLayer,imPh,xPh,vgg = constructGraph(sess,1600)
+#
+# # from tf.keras.applications.VGG16 import decode_predictions
+#
+# pr = np.zeros((1,1000))
+# pr[0,219] = 1
 
 
 with tf.Session() as sess:
     rn_number = 1600
     model,vggCutLayer,imPh,xPh,vgg = constructGraph(sess,rn_number)
-    sess.run(tf.global_variables_initializer())
+    # sess.run(tf.global_variables_initializer())
+    sess.run(tf.variables_initializer(toInit))
     videoVectors = []
     def transformVideo(videopath,label):
         print("Processing video {} with label {}".format(videopath,label))
@@ -166,7 +174,7 @@ with tf.Session() as sess:
             # filename = "{}_{}.jpg".format(rootname, str(frameId))
 
             featureVector, xPrediction,vggOut = sess.run([vggCutLayer.output,model,vgg.output],feed_dict={xPh:xPrediction,imPh:frame})
-            print("converting frame {} with nn argmax {}".format(frameNum,np.argmax(vggOut,axis=1)))
+            print("converting frame {} with nn argmax: {} {}".format(frameNum,np.argmax(vggOut,axis=1),tf.keras.applications.vgg16.decode_predictions(vggOut)[0][0][1]))
             xMean = xMean + xPrediction
             featureMean = featureMean + featureVector
             # cv2.imwrite(os.path.join(dest, filename), img=image)
@@ -175,6 +183,6 @@ with tf.Session() as sess:
     for videopath,label in zip(videos,labels):
         # frameId = int(video_capture.get(1))
         videoVectors.append(transformVideo(videopath,label))
-        print(videoVectors)
+        # print(videoVectors)
     npVideoVectors = np.array(videoVectors)
     np.save("/data/UCFvectors",npVideoVectors)
