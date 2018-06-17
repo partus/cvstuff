@@ -10,6 +10,8 @@ BASE_PATH = "/data/nvidia-docker/data";
 data_dir = os.path.join(BASE_PATH,"UCF-101")
 classMapFile = os.path.join(BASE_PATH,"ucfTrainTestlist/classInd.txt")
 
+from tensorflow.python.client import device_lib
+device_lib.list_local_devices()
 def getVgg(sess,imPh):
     img = imPh
     tf.keras.backend.set_session(sess)
@@ -126,7 +128,7 @@ def reservoir(input,x,name="reservoir"):
         return output
 
 
-def constuctGraph(sess,rn_number = 1600):
+def constructGraph(sess,rn_number = 1600):
     xPh= tf.placeholder(tf.float32,[None,rn_number],name="prediction")
     imPh = tf.placeholder(tf.float32, shape=(None,224, 224,3),name="cnnInput")
     vgg = getVgg(sess,imPh)
@@ -134,14 +136,18 @@ def constuctGraph(sess,rn_number = 1600):
     feature_number = vggCutLayer.output.shape[1]
     print("Featur number of cutLayer {}".format(feature_number))
     model = reservoir(vggCutLayer,xPh)
-    return model,vggCutLayer,imPh,xPh
+    return model,vggCutLayer,imPh,xPh,vgg
 # sess = tf.Session()
 
 videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
+# sess = tf.Session()
+#
+# model,vggCutLayer,imPh,xPh,vgg = constructGraph(sess,1600)
+
 
 with tf.Session() as sess:
     rn_number = 1600
-    model,vggCutLayer,imPh,xPh = constuctGraph(sess,rn_number)
+    model,vggCutLayer,imPh,xPh,vgg = constructGraph(sess,rn_number)
     sess.run(tf.global_variables_initializer())
     videoVectors = []
     def transformVideo(videopath,label):
@@ -158,8 +164,9 @@ with tf.Session() as sess:
             frame = resizeFrame(frame)
             frame = np.array([frame])
             # filename = "{}_{}.jpg".format(rootname, str(frameId))
-            print("converting frame {}".format(frameNum))
-            featureVector, xPrediction = sess.run([vggCutLayer.output,model],feed_dict={xPh:xPrediction,imPh:frame})
+
+            featureVector, xPrediction,vggOut = sess.run([vggCutLayer.output,model,vgg.output],feed_dict={xPh:xPrediction,imPh:frame})
+            print("converting frame {} with nn argmax {}".format(frameNum,np.argmax(vggOut,axis=1)))
             xMean = xMean + xPrediction
             featureMean = featureMean + featureVector
             # cv2.imwrite(os.path.join(dest, filename), img=image)
@@ -168,5 +175,6 @@ with tf.Session() as sess:
     for videopath,label in zip(videos,labels):
         # frameId = int(video_capture.get(1))
         videoVectors.append(transformVideo(videopath,label))
+        print(videoVectors)
     npVideoVectors = np.array(videoVectors)
     np.save("/data/UCFvectors",npVideoVectors)
