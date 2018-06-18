@@ -6,9 +6,7 @@ import matplotlib.pyplot as plt
 import cv2
 import os
 import itertools
-BASE_PATH = "/data/nvidia-docker/data";
-data_dir = os.path.join(BASE_PATH,"UCF-101")
-classMapFile = os.path.join(BASE_PATH,"ucfTrainTestlist/classInd.txt")
+from data_utils import loadPaths
 
 from tensorflow.python.client import device_lib
 device_lib.list_local_devices()
@@ -27,24 +25,6 @@ def getVgg(sess,imPh):
 
 # tf.keras.backend.clear_session()
 
-def labelDicFromFile(name):
-    label_dic = {}
-    with open(name) as f:
-        for line in f:
-            (val, key) = line.split()
-            label_dic[key] = int(val)
-    return label_dic
-
-def dirToVideoLabel(data_dir, label_dic):
-    labels = []
-    filenames = []
-    for label_name in os.listdir(data_dir):
-        label_dir = os.path.join(data_dir, label_name)
-        for video in os.listdir(label_dir):
-            videoFile = os.path.join(label_dir, video)
-            filenames.append(videoFile)
-            labels.append(int(label_dic[label_name]) - 1)
-    return filenames, labels
 
 def extendModel(cutLayer,x):
     input = cutLayer
@@ -141,7 +121,7 @@ def constructGraph(sess,rn_number = 1600):
     return model,vggCutLayer,imPh,xPh,vgg
 # sess = tf.Session()
 
-videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
+# videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
 # sess = tf.Session()
 # #
 # model,vggCutLayer,imPh,xPh,vgg = constructGraph(sess,1600)
@@ -151,13 +131,13 @@ videos,labels = dirToVideoLabel(data_dir,labelDicFromFile(classMapFile))
 # pr = np.zeros((1,1000))
 # pr[0,219] = 1
 
-
+datasets = loadPaths()
 with tf.Session() as sess:
     rn_number = 1600
     model,vggCutLayer,imPh,xPh,vgg = constructGraph(sess,rn_number)
     # sess.run(tf.global_variables_initializer())
     sess.run(tf.variables_initializer(toInit))
-    videoVectors = []
+
     def transformVideo(videopath,label):
         print("Processing video {} with label {}".format(videopath,label))
         xPrediction = np.zeros((1,rn_number))
@@ -180,9 +160,17 @@ with tf.Session() as sess:
             # cv2.imwrite(os.path.join(dest, filename), img=image)
             success, frame = video_capture.read()
         return np.concatenate((featureMean/frameNum,xMean/frameNum),axis=1)
-    for videopath,label in zip(videos,labels):
-        # frameId = int(video_capture.get(1))
-        videoVectors.append(transformVideo(videopath,label))
+
+    for type in ["train","test"]:
+        dataset = datasets[type]
+        videoCount = 5
+        videoVectors = []
+        videos,labels = dataset["paths"], dataset["labels"]
+        for videopath,label in zip(videos,labels):
+            if videoCount < 0: break
+            videoCount-=1
+            # frameId = int(video_capture.get(1))
+            videoVectors.append(transformVideo(videopath,label))
         # print(videoVectors)
-    npVideoVectors = np.array(videoVectors)
-    np.save("/data/UCFvectors",npVideoVectors)
+        npVideoVectors = np.array(videoVectors)
+        np.save("/data/{}_UCFvectors".format(type),npVideoVectors)
