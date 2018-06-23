@@ -89,16 +89,16 @@ def resizeFrame(frame,w=224,h=224):
 # name = "reservoir"
 toInit  = []
 def reservoir(input,x,name="reservoir"):
-    initializer = init_ops.random_normal_initializer()
+    # initializer = init_ops.random_normal_initializer()
     dtype = tf.float32
     rn_number = int(x.shape[1])
     input_size = int(input.output_shape[1])
     print("Reservoir input size: {}".format(input_size))
     with tf.variable_scope(name):  # "ESNCell"
         w_in = tf.get_variable("InputMatrix", [input_size, rn_number], dtype=dtype,
-                            trainable=False, initializer=initializer)
+                            trainable=False, initializer=init_ops.random_normal_initializer(stddev=0.5))
         w_r = tf.get_variable("ReservoirMatrix", [rn_number, rn_number], dtype=dtype,
-                           trainable=False, initializer=initializer)
+                           trainable=False, initializer=init_ops.random_normal_initializer(stddev=0.05))
         toInit.append(w_in)
         toInit.append(w_r)
         # in_mat = tf.concat([input, state], axis=1)
@@ -106,6 +106,7 @@ def reservoir(input,x,name="reservoir"):
         out_in = tf.matmul(input.output,w_in)
         out_x = tf.matmul(x,w_r)
         output = tf.nn.relu(out_in+out_x)
+        # output = tf.nn.tanh(out_in+out_x)
         # output = (1 - self._leaky) * state + self._leaky * self._activation(math_ops.matmul(in_mat, weights_mat) + b)
         return output
 
@@ -131,7 +132,7 @@ def constructGraph(sess,rn_number = 1600):
 # pr = np.zeros((1,1000))
 # pr[0,219] = 1
 
-datasets = loadPaths()
+datasets = loadPaths(train_set_number=1, test_set_number=1)
 with tf.Session() as sess:
     rn_number = 1600
     model,vggCutLayer,imPh,xPh,vgg = constructGraph(sess,rn_number)
@@ -156,19 +157,22 @@ with tf.Session() as sess:
             featureVector, xPrediction,vggOut = sess.run([vggCutLayer.output,model,vgg.output],feed_dict={xPh:xPrediction,imPh:frame})
             print("converting frame {} with nn argmax: {} {}".format(frameNum,np.argmax(vggOut,axis=1),tf.keras.applications.vgg16.decode_predictions(vggOut)[0][0][1]))
             xMean = xMean + xPrediction
+            if(np.isinf(featureVector[0]).any()): print("Inf in Feature vector")
+            if(np.isinf(xPrediction[0]).any()): print("Inf in Prediction vector")
             featureMean = featureMean + featureVector
             # cv2.imwrite(os.path.join(dest, filename), img=image)
             success, frame = video_capture.read()
-        return np.concatenate((featureMean/frameNum,xMean/frameNum),axis=1)
+        return np.concatenate((featureMean[0]/frameNum,xMean[0]/frameNum))
 
     for type in ["train","test"]:
         dataset = datasets[type]
         videoCount = 5
         videoVectors = []
         videos,labels = dataset["paths"], dataset["labels"]
-        for videopath,label in zip(videos,labels):
-            if videoCount < 0: break
-            videoCount-=1
+        for i,(videopath,label) in enumerate(zip(videos,labels)):
+            print("video num {}".format(i))
+            # if videoCount < 0: break
+            # videoCount-=1
             # frameId = int(video_capture.get(1))
             videoVectors.append(transformVideo(videopath,label))
         # print(videoVectors)
